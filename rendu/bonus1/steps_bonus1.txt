@@ -1,0 +1,47 @@
+
+The program compares a local 'n' variable to 0x574f4c46 (1464814662 or the chars FLOW)
+
+but right before it checks if 'n' is less or equal to 9
+
+'n' can be negative as it is signed, so it can be less than 10, like 
+-1073741813 for example.
+
+So 'n' gets to have two different values at two different moments of the program.
+
+---------------------------------------------------------------------------------
+
+memcpy() is told to copy 'n * 4bytes'
+
+but memcpy's size parameter is unsigned (size_t)
+
+so 'n * 4'is computed as a 32-bit value that can overflow
+
+32-bit integers are like an odometer with fixed numbers of digits. When it goes past 
+its maximum it rolls back to the start.
+
+So a large negative'n', once multiplied by 4 and reinterpreted as unsigned, can 
+"roll-over" into a small positive size.
+
+So our negative number once wraped by the 'n * 4' operation will be 44.
+
+So 'n' being a negative number pass the guard and after becomes 44.
+
+---------------------------------------------------------------------------------
+
+So the overwriting 'n' with the overflow:
+
+* buf is 40 bytes
+
+* 'n' sits right after
+
+	[buf: 40 bytes] [n: 4 bytes]
+
+So we'll copy 44 bytes in a 40-byte buffer, so the extra 4 bytes spill diectly 
+onto 'n'.
+
+Then we'll use that overflow to overwrite n to 0x574f4c46 so we can get into the condition:
+
+if (n == 0x574f4c46)
+    execl("/bin/sh", ...)
+
+printf 'id\ncat /home/user/bonus2/.pass\n' | ./bonus1 -1073741813 $(python -c "print 'A'*40+'FLOW'")

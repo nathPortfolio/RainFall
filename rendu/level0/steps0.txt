@@ -1,0 +1,46 @@
+scp -P 4242 level0@RainFall:level0 <local_path>
+
+----------------------------------------------------------------------------------
+
+undefined4 main(undefined4 param_1,int param_2)
+
+{
+  int iVar1;
+  undefined4 uStack_20;
+  undefined4 uStack_1c;
+  undefined4 uStack_18;
+  undefined4 uStack_14;
+  
+  iVar1 = atoi(*(undefined4 *)(param_2 + 4));
+  if (iVar1 == 0x1a7) {
+    uStack_20 = strdup(&UNK_080c5348);
+    uStack_1c = 0;
+    uStack_14 = getegid();
+    uStack_18 = geteuid();
+    setresgid(uStack_14,uStack_14,uStack_14);
+    setresuid(uStack_18,uStack_18,uStack_18);
+    execv(&UNK_080c5348,&uStack_20);
+  }
+  else {
+    fwrite(&UNK_080c5350,1,5,stderr);
+  }
+  return 0;
+}
+
+----------------------------------------------------------------------------------
+
+So as we can see in the disassembled code (also png file in this directory) the 
+program uses an if to compare the input to 0x1a7 and if is equal it runs "/bin/sh".
+
+So all we need to know is the value of 0x1a7 in decimal and run the program with it
+
+printf "%d\n" 0x1a7
+
+0x1a7 to decimal = 423
+
+----------------------------------------------------------------------------------
+
+./level0 423
+
+
+cat /home/user/level1/.pass

